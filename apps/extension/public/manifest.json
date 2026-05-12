@@ -3,8 +3,20 @@
   "name": "FillAI",
   "description": "OpenAI-powered autofill for job applications.",
   "version": "0.1.0",
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
   "action": {
     "default_popup": "src/popup/index.html",
+    "default_icon": {
+      "16": "logo.png",
+      "32": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
+    },
     "default_title": "FillAI"
   },
   "background": {

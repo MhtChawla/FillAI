@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sample Product Manager Application</title>
+    <style>
+      body {
+        max-width: 780px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #18211f;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      form,
+      label {
+        display: grid;
+        gap: 12px;
+      }
+
+      form {
+        margin-top: 24px;
+      }
+
+      input,
+      textarea,
+      select {
+        min-height: 38px;
+        border: 1px solid #c7cfc9;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 110px;
+      }
+
+      button {
+        width: fit-content;
+        min-height: 40px;
+        border: 0;
+        border-radius: 6px;
+        background: #116149;
+        color: white;
+        padding: 0 16px;
+        font: inherit;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Senior Product Manager, Growth</h1>
+      <p>
+        We are hiring a product leader to improve activation, retention, and customer onboarding for a fast-growing B2B
+        SaaS platform. The role partners with design, engineering, data science, and customer success.
+      </p>
+
+      <form>
+        <label>
+          Full name
+          <input name="full_name" autocomplete="name" required />
+        </label>
+
+        <label>
+          Email
+          <input name="email" type="email" autocomplete="email" required />
+        </label>
+
+        <label>
+          Phone number
+          <input name="phone" type="tel" autocomplete="tel" />
+        </label>
+
+        <label>
+          LinkedIn profile
+          <input name="linkedin" type="url" />
+        </label>
+
+        <label>
+          Are you authorized to work in this country?
+          <select name="work_authorization" required>
+            <option value="">Select one</option>
+            <option>Yes</option>
+            <option>No</option>
+          </select>
+        </label>
+
+        <label>
+          Will you require visa sponsorship now or in the future?
+          <select name="sponsorship" required>
+            <option value="">Select one</option>
+            <option>Yes</option>
+            <option>No</option>
+          </select>
+        </label>
+
+        <label>
+          Why are you interested in this role?
+          <textarea name="motivation"></textarea>
+        </label>
+
+        <label>
+          Summarize your most relevant experience
+          <textarea name="experience_summary"></textarea>
+        </label>
+
+        <button type="button">Submit application</button>
+      </form>
+    </main>
+  </body>
+</html>

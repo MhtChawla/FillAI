@@ -1,0 +1,22 @@
+{
+  "name": "fillai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAI-powered Chrome extension and API for job application autofill.",
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/api",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:extension": "npm run dev --workspace apps/extension",
+    "build": "npm run build --workspace apps/api && npm run build --workspace apps/extension",
+    "build:api": "npm run build --workspace apps/api",
+    "build:extension": "npm run build --workspace apps/extension",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "FillAI",
+  "description": "OpenAI-powered autofill for job applications.",
+  "version": "0.1.0",
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "FillAI"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": ["http://localhost:8787/*"],
+  "permissions": ["activeTab", "storage", "scripting"]
+}

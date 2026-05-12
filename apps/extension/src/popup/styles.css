@@ -1,0 +1,183 @@
+:root {
+  color: #18211f;
+  background: #f7f5ef;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 420px;
+  min-height: 580px;
+  margin: 0;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+header,
+.toolbar,
+.status-line {
+  display: flex;
+  align-items: center;
+}
+
+header {
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0;
+  color: #18211f;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 5px 0 0;
+  color: #64706c;
+  font-size: 13px;
+}
+
+.toolbar {
+  gap: 9px;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: progress;
+  opacity: 0.76;
+}
+
+.primary {
+  flex: 1;
+  background: #116149;
+  color: white;
+}
+
+.secondary,
+.icon-button {
+  background: white;
+  border-color: #d7d2c5;
+  color: #23302d;
+}
+
+.secondary {
+  padding: 0 13px;
+}
+
+.icon-button {
+  width: 38px;
+}
+
+.status {
+  border: 1px solid #d7d2c5;
+  border-radius: 8px;
+  background: white;
+  padding: 10px 12px;
+  color: #3d4945;
+  font-size: 13px;
+}
+
+.status.success {
+  border-color: #a9d8bd;
+  background: #f0fbf4;
+  color: #14593d;
+}
+
+.status.error {
+  border-color: #e9b4a6;
+  background: #fff3ef;
+  color: #8c2d1d;
+}
+
+.status-line {
+  gap: 7px;
+}
+
+.status ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.settings,
+.profile-grid,
+.long-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  color: #47514e;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #d7d2c5;
+  border-radius: 7px;
+  background: white;
+  color: #18211f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: 0;
+  outline: none;
+}
+
+input {
+  height: 34px;
+  padding: 0 10px;
+}
+
+textarea {
+  min-height: 78px;
+  resize: vertical;
+  padding: 9px 10px;
+}
+
+input:focus,
+textarea:focus,
+button:focus-visible {
+  border-color: #116149;
+  box-shadow: 0 0 0 3px rgba(17, 97, 73, 0.14);
+}
+
+.spin {
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

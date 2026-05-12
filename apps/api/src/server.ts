@@ -34,7 +34,16 @@ const candidateProfileSchema = z.object({
   sponsorship: z.string().default(""),
   salaryExpectation: z.string().default(""),
   noticePeriod: z.string().default(""),
-  customNotes: z.string().default("")
+  customNotes: z.string().default(""),
+  customFields: z
+    .array(
+      z.object({
+        id: z.string().default(""),
+        name: z.string().default(""),
+        value: z.string().default("")
+      })
+    )
+    .default([])
 });
 
 const formFieldSchema = z.object({
@@ -177,6 +186,7 @@ Rules:
 - For select/radio fields, choose one of the provided options exactly when possible.
 - For checkbox fields, use boolean values.
 - For missing or sensitive unknown answers, skip the field and add a warning.
+- Treat customFields as user-provided profile facts. Match them by semantic meaning, even when the webpage label uses different wording than the custom field name.
 - Do not claim the user has experience or authorization that is not in the profile.
 - Keep long-answer responses under 120 words unless the field clearly asks for a cover-letter-like answer.
 

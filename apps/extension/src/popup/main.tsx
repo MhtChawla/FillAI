@@ -1,7 +1,7 @@
-import { CheckCircle2, Loader2, Save, Sparkles, Wifi } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, Save, Sparkles, Trash2, Wifi } from "lucide-react";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { BackgroundMessage, CandidateProfile, ExtensionSettings } from "../shared";
+import type { BackgroundMessage, CandidateProfile, CustomProfileField, ExtensionSettings } from "../shared";
 import { defaultSettings } from "../shared";
 import "./styles.css";
 
@@ -21,20 +21,37 @@ function Popup() {
     void chrome.storage.local.get(storageKey).then((stored) => {
       const value = stored[storageKey] as Partial<ExtensionSettings> | undefined;
       if (!value) return;
+      const customFields = Array.isArray(value.profile?.customFields) ? value.profile.customFields : [];
       setSettings({
         ...defaultSettings,
         ...value,
         profile: {
           ...defaultSettings.profile,
-          ...value.profile
+          ...value.profile,
+          customFields
         }
       });
     });
   }, []);
 
   const profileCompleteness = useMemo(() => {
-    const values = Object.values(settings.profile).filter((value) => value.trim().length > 0);
-    return Math.round((values.length / Object.keys(settings.profile).length) * 100);
+    const standardFields: Array<keyof Omit<CandidateProfile, "customFields">> = [
+      "fullName",
+      "email",
+      "phone",
+      "location",
+      "linkedin",
+      "portfolio",
+      "resumeText",
+      "workAuthorization",
+      "sponsorship",
+      "salaryExpectation",
+      "noticePeriod",
+      "customNotes"
+    ];
+    const filledStandardFields = standardFields.filter((key) => settings.profile[key].trim().length > 0).length;
+    const filledCustomFields = settings.profile.customFields.filter((field) => field.name.trim() && field.value.trim()).length;
+    return Math.round(((filledStandardFields + filledCustomFields) / (standardFields.length + settings.profile.customFields.length)) * 100);
   }, [settings.profile]);
 
   async function saveSettings(nextSettings = settings) {
@@ -94,6 +111,24 @@ function Popup() {
     }));
   }
 
+  function addCustomField() {
+    updateProfile("customFields", [...settings.profile.customFields, createCustomField()]);
+  }
+
+  function updateCustomField(id: string, patch: Partial<Pick<CustomProfileField, "name" | "value">>) {
+    updateProfile(
+      "customFields",
+      settings.profile.customFields.map((field) => (field.id === id ? { ...field, ...patch } : field))
+    );
+  }
+
+  function removeCustomField(id: string) {
+    updateProfile(
+      "customFields",
+      settings.profile.customFields.filter((field) => field.id !== id)
+    );
+  }
+
   return (
     <main>
       <header>
@@ -143,8 +178,42 @@ function Popup() {
         <TextArea label="Resume text" value={settings.profile.resumeText} onChange={(value) => updateProfile("resumeText", value)} rows={7} />
         <TextArea label="Custom answer notes" value={settings.profile.customNotes} onChange={(value) => updateProfile("customNotes", value)} rows={4} />
       </section>
+
+      <section className="custom-fields">
+        <div className="section-heading">
+          <div>
+            <h2>Custom fields</h2>
+            <p>Name/value pairs for site-specific questions.</p>
+          </div>
+          <button className="icon-button" onClick={addCustomField} title="Add custom field" type="button">
+            <Plus size={18} />
+          </button>
+        </div>
+
+        {settings.profile.customFields.length > 0 ? (
+          <div className="custom-field-list">
+            {settings.profile.customFields.map((field) => (
+              <div className="custom-field-row" key={field.id}>
+                <Field label="Name" value={field.name} onChange={(value) => updateCustomField(field.id, { name: value })} />
+                <Field label="Value" value={field.value} onChange={(value) => updateCustomField(field.id, { value })} />
+                <button className="icon-button danger" onClick={() => removeCustomField(field.id)} title="Remove custom field" type="button">
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
     </main>
   );
+}
+
+function createCustomField(): CustomProfileField {
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: "",
+    value: ""
+  };
 }
 
 function Field(props: { label: string; value: string; onChange: (value: string) => void }) {

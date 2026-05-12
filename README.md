@@ -50,3 +50,31 @@ The extension never stores an OpenAI API key. It sends page/form context to the 
 ## Important
 
 For production, deploy `apps/api` behind authentication, rate limiting, TLS, and audit logging. Never ship your OpenAI API key inside a Chrome extension.
+
+## After Making Changes
+
+1. Typecheck everything:
+
+   ```sh
+   npm run typecheck
+   ```
+
+2. If extension files changed, rebuild the extension:
+
+   ```sh
+   npm run build:extension
+   ```
+
+3. Build the API and extension before final verification:
+
+   ```sh
+   npm run build
+   ```
+
+4. If extension files changed, reload the unpacked extension in `chrome://extensions`.
+
+5. If API files changed, restart the local API server:
+
+   ```sh
+   npm run dev:api
+   ```

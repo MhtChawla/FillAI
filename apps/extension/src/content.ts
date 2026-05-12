@@ -43,7 +43,8 @@ function collectPayload(): AutofillPayload {
       sponsorship: "",
       salaryExpectation: "",
       noticePeriod: "",
-      customNotes: ""
+      customNotes: "",
+      customFields: []
     },
     jobContext: collectJobContext(),
     fields

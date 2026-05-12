@@ -1,3 +1,9 @@
+export type CustomProfileField = {
+  id: string;
+  name: string;
+  value: string;
+};
+
 export type CandidateProfile = {
   fullName: string;
   email: string;
@@ -11,6 +17,7 @@ export type CandidateProfile = {
   salaryExpectation: string;
   noticePeriod: string;
   customNotes: string;
+  customFields: CustomProfileField[];
 };
 
 export type DetectedField = {
@@ -68,7 +75,8 @@ export const defaultSettings: ExtensionSettings = {
     sponsorship: "",
     salaryExpectation: "",
     noticePeriod: "",
-    customNotes: ""
+    customNotes: "",
+    customFields: []
   }
 };
 

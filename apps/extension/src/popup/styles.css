@@ -24,12 +24,15 @@ main {
 
 header,
 .toolbar,
-.status-line {
+.status-line,
+.section-heading,
+.custom-field-row {
   display: flex;
   align-items: center;
 }
 
-header {
+header,
+.section-heading {
   justify-content: space-between;
 }
 
@@ -38,6 +41,14 @@ h1 {
   color: #18211f;
   font-size: 22px;
   line-height: 1.1;
+  letter-spacing: 0;
+}
+
+h2 {
+  margin: 0;
+  color: #18211f;
+  font-size: 15px;
+  line-height: 1.2;
   letter-spacing: 0;
 }
 
@@ -91,6 +102,10 @@ button:disabled {
   width: 38px;
 }
 
+.danger {
+  color: #8c2d1d;
+}
+
 .status {
   border: 1px solid #d7d2c5;
   border-radius: 8px;
@@ -123,13 +138,24 @@ button:disabled {
 
 .settings,
 .profile-grid,
-.long-fields {
+.long-fields,
+.custom-fields,
+.custom-field-list {
   display: grid;
   gap: 10px;
 }
 
 .profile-grid {
   grid-template-columns: 1fr 1fr;
+}
+
+.custom-field-row {
+  align-items: end;
+  gap: 8px;
+}
+
+.custom-field-row label {
+  flex: 1;
 }
 
 label {

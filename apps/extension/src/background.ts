@@ -2,6 +2,7 @@ import type {
   AutofillPayload,
   AutofillResult,
   BackgroundMessage,
+  CandidateProfile,
   ContentMessage,
   ExtensionSettings
 } from "./shared";
@@ -52,7 +53,7 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
     },
     body: JSON.stringify({
       ...contextResponse.payload,
-      profile: settings.profile
+      profile: profileForApi(settings.profile)
     })
   });
 
@@ -66,15 +67,52 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
     type: "APPLY_FILLS",
     fills: result.fills
   });
+  const resume = getCurrentResume(settings.profile);
+  const attachmentWarnings = [...result.warnings];
+
+  if (resume) {
+    const attachResponse = await sendToTab<{ attached: boolean; warning?: string }>(tabId, {
+      type: "ATTACH_RESUME",
+      resume: {
+        name: resume.name,
+        mimeType: resume.mimeType,
+        dataUrl: resume.dataUrl
+      }
+    });
+
+    if (attachResponse.warning) {
+      attachmentWarnings.push(attachResponse.warning);
+    }
+  }
 
   return {
     ok: true,
     data: {
       ...result,
+      warnings: attachmentWarnings,
       applied: applyResponse.applied,
       skipped: applyResponse.skipped,
       detectedFields: contextResponse.payload.fields.length
     }
+  };
+}
+
+function getCurrentResume(profile: CandidateProfile) {
+  return profile.resumes.find((resume) => resume.id === profile.currentResumeId) ?? profile.resumes[0];
+}
+
+function profileForApi(profile: CandidateProfile): CandidateProfile {
+  const currentResume = getCurrentResume(profile);
+  return {
+    ...profile,
+    currentResumeId: currentResume?.id ?? "",
+    resumes: profile.resumes.map((resume) => ({
+      id: resume.id,
+      name: resume.name,
+      mimeType: resume.mimeType,
+      uploadedAt: resume.uploadedAt,
+      dataUrl: resume.id === currentResume?.id ? resume.dataUrl : ""
+    }))
   };
 }
 

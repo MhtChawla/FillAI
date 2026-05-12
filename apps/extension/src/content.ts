@@ -3,7 +3,8 @@ import type {
   ContentMessage,
   DetectedField,
   FillInstruction,
-  JobContext
+  JobContext,
+  ResumeAttachment
 } from "./shared";
 
 const FIELD_SELECTOR =
@@ -19,6 +20,19 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResp
 
   if (message.type === "APPLY_FILLS") {
     sendResponse(applyFills(message.fills));
+    return;
+  }
+
+  if (message.type === "ATTACH_RESUME") {
+    void attachResume(message.resume)
+      .then(sendResponse)
+      .catch((error: unknown) => {
+        sendResponse({
+          attached: false,
+          warning: error instanceof Error ? error.message : "Could not attach resume."
+        });
+      });
+    return true;
   }
 });
 
@@ -44,7 +58,9 @@ function collectPayload(): AutofillPayload {
       salaryExpectation: "",
       noticePeriod: "",
       customNotes: "",
-      customFields: []
+      customFields: [],
+      resumes: [],
+      currentResumeId: ""
     },
     jobContext: collectJobContext(),
     fields
@@ -144,6 +160,40 @@ function applyValue(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelect
   const selected = selectOption(element, String(value));
   if (selected) dispatchInputEvents(element);
   return selected;
+}
+
+async function attachResume(resume: ResumeAttachment): Promise<{ attached: boolean; warning?: string }> {
+  const fileInputs = Array.from(document.querySelectorAll<HTMLInputElement>("input[type='file']:not([disabled])")).filter(isVisibleField);
+  if (!fileInputs.length) {
+    return { attached: false, warning: "No visible file upload field was detected for the resume." };
+  }
+
+  const target = findResumeFileInput(fileInputs) ?? fileInputs[0];
+  if (!target) {
+    return { attached: false, warning: "No visible file upload field was detected for the resume." };
+  }
+
+  const file = await resumeToFile(resume);
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  target.files = transfer.files;
+  dispatchInputEvents(target);
+  markFilled(target);
+
+  return { attached: true };
+}
+
+function findResumeFileInput(inputs: HTMLInputElement[]): HTMLInputElement | undefined {
+  return inputs.find((input) => {
+    const text = normalizeForMatch([input.name, input.id, input.accept, input.placeholder, input.getAttribute("aria-label") ?? "", findLabel(input)].join(" "));
+    return /\b(resume|cv|curriculum|vitae)\b/.test(text);
+  });
+}
+
+async function resumeToFile(resume: ResumeAttachment): Promise<File> {
+  const response = await fetch(resume.dataUrl);
+  const blob = await response.blob();
+  return new File([blob], resume.name, { type: resume.mimeType || blob.type || "application/octet-stream" });
 }
 
 function selectOption(select: HTMLSelectElement, value: string): boolean {

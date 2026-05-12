@@ -140,7 +140,9 @@ button:disabled {
 .profile-grid,
 .long-fields,
 .custom-fields,
-.custom-field-list {
+.custom-field-list,
+.resume-manager,
+.resume-list {
   display: grid;
   gap: 10px;
 }
@@ -156,6 +158,74 @@ button:disabled {
 
 .custom-field-row label {
   flex: 1;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #116149;
+  border-radius: 8px;
+  background: #116149;
+  color: white;
+  cursor: pointer;
+}
+
+.upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-button:hover {
+  background: #0d4f3d;
+}
+
+.upload-button.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.resume-row,
+.current-resume {
+  display: flex;
+  align-items: center;
+}
+
+.resume-row {
+  gap: 8px;
+}
+
+.current-resume {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  gap: 8px;
+  border: 1px solid #d7d2c5;
+  border-radius: 7px;
+  background: white;
+  padding: 0 10px;
+  color: #23302d;
+  font-size: 13px;
+}
+
+.current-resume input {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  accent-color: #116149;
+}
+
+.current-resume span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 label {

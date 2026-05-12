@@ -4,6 +4,14 @@ export type CustomProfileField = {
   value: string;
 };
 
+export type StoredResume = {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+  uploadedAt: string;
+};
+
 export type CandidateProfile = {
   fullName: string;
   email: string;
@@ -18,6 +26,8 @@ export type CandidateProfile = {
   noticePeriod: string;
   customNotes: string;
   customFields: CustomProfileField[];
+  resumes: StoredResume[];
+  currentResumeId: string;
 };
 
 export type DetectedField = {
@@ -51,6 +61,12 @@ export type FillInstruction = {
   reason?: string;
 };
 
+export type ResumeAttachment = {
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+};
+
 export type AutofillResult = {
   fills: FillInstruction[];
   warnings: string[];
@@ -76,13 +92,16 @@ export const defaultSettings: ExtensionSettings = {
     salaryExpectation: "",
     noticePeriod: "",
     customNotes: "",
-    customFields: []
+    customFields: [],
+    resumes: [],
+    currentResumeId: ""
   }
 };
 
 export type ContentMessage =
   | { type: "COLLECT_FORM_CONTEXT" }
-  | { type: "APPLY_FILLS"; fills: FillInstruction[] };
+  | { type: "APPLY_FILLS"; fills: FillInstruction[] }
+  | { type: "ATTACH_RESUME"; resume: ResumeAttachment };
 
 export type BackgroundMessage =
   | { type: "RUN_AUTOFILL"; tabId: number; settings: ExtensionSettings }

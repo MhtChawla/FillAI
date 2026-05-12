@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import "dotenv/config";
 import Fastify from "fastify";
 import OpenAI from "openai";
+import type { ResponseInputMessageContentList } from "openai/resources/responses/responses";
 import { z } from "zod";
 
 const env = z
@@ -19,7 +20,7 @@ if (!env.success) {
 }
 
 const config = env.data;
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 55 * 1024 * 1024 });
 const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
 
 const candidateProfileSchema = z.object({
@@ -43,7 +44,20 @@ const candidateProfileSchema = z.object({
         value: z.string().default("")
       })
     )
-    .default([])
+    .default([]),
+  resumes: z
+    .array(
+      z.object({
+        id: z.string().default(""),
+        name: z.string().default(""),
+        mimeType: z.string().default(""),
+        dataUrl: z.string().default(""),
+        uploadedAt: z.string().default("")
+      })
+    )
+    .max(4)
+    .default([]),
+  currentResumeId: z.string().default("")
 });
 
 const formFieldSchema = z.object({
@@ -110,11 +124,11 @@ app.post("/api/autofill", async (request, reply) => {
     max_output_tokens: 3500,
     temperature: 0.2,
     instructions:
-      "You are a careful job application autofill assistant. Use the candidate profile as the source of truth. Do not invent credentials, degrees, employers, dates, salaries, immigration status, protected-class information, or legal claims. If a field needs a document upload or information is missing, omit the fill and add a warning.",
+      "You are a careful job application autofill assistant. Use the candidate profile and current resume file as the source of truth. Do not invent credentials, degrees, employers, dates, salaries, immigration status, protected-class information, or legal claims. If a field needs information that is missing, omit the fill and add a warning.",
     input: [
       {
         role: "user",
-        content: buildAutofillPrompt(parsed.data)
+        content: buildAutofillContent(parsed.data)
       }
     ],
     text: {
@@ -165,7 +179,38 @@ app.listen({ port: config.PORT, host: "0.0.0.0" }).catch((error) => {
   process.exit(1);
 });
 
+function buildAutofillContent(input: z.infer<typeof autofillRequestSchema>): string | ResponseInputMessageContentList {
+  const prompt = buildAutofillPrompt(input);
+  const currentResume = getCurrentResume(input.profile);
+  if (!currentResume?.dataUrl) {
+    return prompt;
+  }
+
+  return [
+    {
+      type: "input_text",
+      text: prompt
+    },
+    {
+      type: "input_file",
+      filename: currentResume.name || "resume",
+      file_data: currentResume.dataUrl
+    }
+  ];
+}
+
 function buildAutofillPrompt(input: z.infer<typeof autofillRequestSchema>): string {
+  const promptProfile = {
+    ...input.profile,
+    resumes: input.profile.resumes.map((resume) => ({
+      id: resume.id,
+      name: resume.name,
+      mimeType: resume.mimeType,
+      uploadedAt: resume.uploadedAt,
+      isCurrent: resume.id === input.profile.currentResumeId
+    }))
+  };
+
   return `Fill this job application form.
 
 Return strict JSON only:
@@ -187,17 +232,23 @@ Rules:
 - For checkbox fields, use boolean values.
 - For missing or sensitive unknown answers, skip the field and add a warning.
 - Treat customFields as user-provided profile facts. Match them by semantic meaning, even when the webpage label uses different wording than the custom field name.
+- Use the attached current resume file to answer job-portal custom questions when the answer is supported by the resume or profile.
+- For free-text custom questions, write in a human voice. Keep answers short, usually 2-3 lines or under 60 words. Add a compact example, context, or story only when it is grounded in the resume/profile and helps the answer feel specific.
 - Do not claim the user has experience or authorization that is not in the profile.
 - Keep long-answer responses under 120 words unless the field clearly asks for a cover-letter-like answer.
 
 Candidate profile:
-${JSON.stringify(input.profile, null, 2)}
+${JSON.stringify(promptProfile, null, 2)}
 
 Job context:
 ${JSON.stringify(input.jobContext, null, 2)}
 
 Fields:
 ${JSON.stringify(input.fields, null, 2)}`;
+}
+
+function getCurrentResume(profile: z.infer<typeof candidateProfileSchema>) {
+  return profile.resumes.find((resume) => resume.id === profile.currentResumeId) ?? profile.resumes[0];
 }
 
 const autofillJsonSchema = {

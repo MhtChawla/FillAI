@@ -1,7 +1,7 @@
-import { CheckCircle2, Loader2, Plus, Save, Sparkles, Trash2, Wifi } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, Plus, Save, Sparkles, Trash2, Upload, Wifi } from "lucide-react";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { BackgroundMessage, CandidateProfile, CustomProfileField, ExtensionSettings } from "../shared";
+import type { BackgroundMessage, CandidateProfile, CustomProfileField, ExtensionSettings, StoredResume } from "../shared";
 import { defaultSettings } from "../shared";
 import "./styles.css";
 
@@ -12,6 +12,7 @@ type RunState =
   | { status: "error"; message: string };
 
 const storageKey = "jobApplyAiSettings";
+const maxResumeBytes = 50 * 1024 * 1024;
 
 function Popup() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultSettings);
@@ -22,36 +23,58 @@ function Popup() {
       const value = stored[storageKey] as Partial<ExtensionSettings> | undefined;
       if (!value) return;
       const customFields = Array.isArray(value.profile?.customFields) ? value.profile.customFields : [];
+      const resumes = Array.isArray(value.profile?.resumes) ? value.profile.resumes.slice(0, 4) : [];
+      const currentResumeId =
+        typeof value.profile?.currentResumeId === "string" && resumes.some((resume) => resume.id === value.profile?.currentResumeId)
+          ? value.profile.currentResumeId
+          : (resumes[0]?.id ?? "");
       setSettings({
         ...defaultSettings,
         ...value,
         profile: {
           ...defaultSettings.profile,
           ...value.profile,
-          customFields
+          customFields,
+          resumes,
+          currentResumeId
         }
       });
     });
   }, []);
 
   const profileCompleteness = useMemo(() => {
-    const standardFields: Array<keyof Omit<CandidateProfile, "customFields">> = [
+    const standardFields: Array<
+      keyof Pick<
+        CandidateProfile,
+        | "fullName"
+        | "email"
+        | "phone"
+        | "location"
+        | "linkedin"
+        | "portfolio"
+        | "workAuthorization"
+        | "sponsorship"
+        | "salaryExpectation"
+        | "noticePeriod"
+      >
+    > = [
       "fullName",
       "email",
       "phone",
       "location",
       "linkedin",
       "portfolio",
-      "resumeText",
       "workAuthorization",
       "sponsorship",
       "salaryExpectation",
-      "noticePeriod",
-      "customNotes"
+      "noticePeriod"
     ];
     const filledStandardFields = standardFields.filter((key) => settings.profile[key].trim().length > 0).length;
     const filledCustomFields = settings.profile.customFields.filter((field) => field.name.trim() && field.value.trim()).length;
-    return Math.round(((filledStandardFields + filledCustomFields) / (standardFields.length + settings.profile.customFields.length)) * 100);
+    const filledResume = settings.profile.currentResumeId ? 1 : 0;
+    return Math.round(
+      ((filledStandardFields + filledCustomFields + filledResume) / (standardFields.length + settings.profile.customFields.length + 1)) * 100
+    );
   }, [settings.profile]);
 
   async function saveSettings(nextSettings = settings) {
@@ -129,6 +152,46 @@ function Popup() {
     );
   }
 
+  async function addResumes(files: FileList | null) {
+    if (!files?.length) return;
+
+    const openSlots = Math.max(0, 4 - settings.profile.resumes.length);
+    if (!openSlots) {
+      setState({ status: "error", message: "You can store up to 4 resumes." });
+      return;
+    }
+
+    const selectedFiles = Array.from(files).slice(0, openSlots);
+    const oversizedFile = selectedFiles.find((file) => file.size > maxResumeBytes);
+    if (oversizedFile) {
+      setState({ status: "error", message: `${oversizedFile.name} is over the 50 MB resume limit.` });
+      return;
+    }
+
+    const nextResumes = await Promise.all(selectedFiles.map(toStoredResume));
+    const resumes = [...settings.profile.resumes, ...nextResumes];
+    updateProfile("resumes", resumes);
+    if (!settings.profile.currentResumeId && resumes[0]) {
+      updateProfile("currentResumeId", resumes[0].id);
+    }
+  }
+
+  function setCurrentResume(id: string) {
+    updateProfile("currentResumeId", id);
+  }
+
+  function removeResume(id: string) {
+    const resumes = settings.profile.resumes.filter((resume) => resume.id !== id);
+    setSettings((current) => ({
+      ...current,
+      profile: {
+        ...current.profile,
+        resumes,
+        currentResumeId: current.profile.currentResumeId === id ? (resumes[0]?.id ?? "") : current.profile.currentResumeId
+      }
+    }));
+  }
+
   return (
     <main>
       <header>
@@ -174,9 +237,48 @@ function Popup() {
         <Field label="Notice period" value={settings.profile.noticePeriod} onChange={(value) => updateProfile("noticePeriod", value)} />
       </section>
 
-      <section className="long-fields">
-        <TextArea label="Resume text" value={settings.profile.resumeText} onChange={(value) => updateProfile("resumeText", value)} rows={7} />
-        <TextArea label="Custom answer notes" value={settings.profile.customNotes} onChange={(value) => updateProfile("customNotes", value)} rows={4} />
+      <section className="resume-manager">
+        <div className="section-heading">
+          <div>
+            <h2>Resume files</h2>
+            <p>{settings.profile.resumes.length}/4 saved. The current resume is attached to job sites.</p>
+          </div>
+          <label className={`icon-button upload-button ${settings.profile.resumes.length >= 4 ? "disabled" : ""}`} title="Upload resume files">
+            <Upload size={18} />
+            <input
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={settings.profile.resumes.length >= 4}
+              multiple
+              onChange={(event) => {
+                void addResumes(event.target.files);
+                event.currentTarget.value = "";
+              }}
+              type="file"
+            />
+          </label>
+        </div>
+
+        {settings.profile.resumes.length > 0 ? (
+          <div className="resume-list">
+            {settings.profile.resumes.map((resume) => (
+              <div className="resume-row" key={resume.id}>
+                <label className="current-resume">
+                  <input
+                    checked={settings.profile.currentResumeId === resume.id}
+                    name="currentResume"
+                    onChange={() => setCurrentResume(resume.id)}
+                    type="radio"
+                  />
+                  <FileText size={16} />
+                  <span>{resume.name}</span>
+                </label>
+                <button className="icon-button danger" onClick={() => removeResume(resume.id)} title="Remove resume" type="button">
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="custom-fields">
@@ -216,20 +318,30 @@ function createCustomField(): CustomProfileField {
   };
 }
 
+async function toStoredResume(file: File): Promise<StoredResume> {
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: file.name,
+    mimeType: file.type || "application/octet-stream",
+    dataUrl: await readFileAsDataUrl(file),
+    uploadedAt: new Date().toISOString()
+  };
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("Could not read resume file.")));
+    reader.readAsDataURL(file);
+  });
+}
+
 function Field(props: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label>
       {props.label}
       <input value={props.value} onChange={(event) => props.onChange(event.target.value)} />
-    </label>
-  );
-}
-
-function TextArea(props: { label: string; value: string; rows: number; onChange: (value: string) => void }) {
-  return (
-    <label>
-      {props.label}
-      <textarea rows={props.rows} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
     </label>
   );
 }

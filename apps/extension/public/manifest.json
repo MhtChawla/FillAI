@@ -31,5 +31,5 @@
     }
   ],
   "host_permissions": ["http://localhost:8787/*"],
-  "permissions": ["activeTab", "storage", "scripting"]
+  "permissions": ["activeTab", "storage", "scripting", "unlimitedStorage"]
 }

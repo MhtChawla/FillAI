@@ -94,7 +94,7 @@ function Popup() {
 
   async function runAutofill() {
     await saveSettings(settings);
-    setState({ status: "loading", message: "Reading the page and asking OpenAI..." });
+    setState({ status: "loading", message: "Valuating & populating the application..." });
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

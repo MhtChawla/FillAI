@@ -128,8 +128,8 @@ function applyValue(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelect
     if (element.type === "file") return false;
 
     if (element.type === "checkbox") {
-      element.checked = Boolean(value);
-      dispatchInputEvents(element);
+      setNativeChecked(element, Boolean(value));
+      dispatchFillEvents(element);
       return true;
     }
 
@@ -141,53 +141,77 @@ function applyValue(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelect
         return radio.value.toLowerCase() === desired || label === desired || label.includes(desired);
       });
       if (!match) return false;
-      match.checked = true;
-      dispatchInputEvents(match);
+      setNativeChecked(match, true);
+      dispatchFillEvents(match);
       return true;
     }
 
-    element.value = String(value);
-    dispatchInputEvents(element);
+    setNativeValue(element, String(value));
+    dispatchFillEvents(element);
     return true;
   }
 
   if (element instanceof HTMLTextAreaElement) {
-    element.value = String(value);
-    dispatchInputEvents(element);
+    setNativeValue(element, String(value));
+    dispatchFillEvents(element);
     return true;
   }
 
   const selected = selectOption(element, String(value));
-  if (selected) dispatchInputEvents(element);
+  if (selected) dispatchFillEvents(element);
   return selected;
 }
 
 async function attachResume(resume: ResumeAttachment): Promise<{ attached: boolean; warning?: string }> {
-  const fileInputs = Array.from(document.querySelectorAll<HTMLInputElement>("input[type='file']:not([disabled])")).filter(isVisibleField);
+  const fileInputs = Array.from(document.querySelectorAll<HTMLInputElement>("input[type='file']:not([disabled])"));
   if (!fileInputs.length) {
-    return { attached: false, warning: "No visible file upload field was detected for the resume." };
+    return { attached: false, warning: "No file upload field was detected for the resume." };
   }
 
   const target = findResumeFileInput(fileInputs) ?? fileInputs[0];
   if (!target) {
-    return { attached: false, warning: "No visible file upload field was detected for the resume." };
+    return { attached: false, warning: "No file upload field was detected for the resume." };
   }
 
   const file = await resumeToFile(resume);
   const transfer = new DataTransfer();
   transfer.items.add(file);
   target.files = transfer.files;
-  dispatchInputEvents(target);
+  dispatchFillEvents(target);
+  dispatchUploadEvents(target, transfer);
   markFilled(target);
 
   return { attached: true };
 }
 
 function findResumeFileInput(inputs: HTMLInputElement[]): HTMLInputElement | undefined {
-  return inputs.find((input) => {
-    const text = normalizeForMatch([input.name, input.id, input.accept, input.placeholder, input.getAttribute("aria-label") ?? "", findLabel(input)].join(" "));
-    return /\b(resume|cv|curriculum|vitae)\b/.test(text);
-  });
+  return inputs
+    .map((input) => ({ input, score: scoreFileInput(input) }))
+    .sort((a, b) => b.score - a.score)
+    .find((candidate) => candidate.score > 0)?.input;
+}
+
+function scoreFileInput(input: HTMLInputElement): number {
+  const text = normalizeForMatch(
+    [
+      input.name,
+      input.id,
+      input.accept,
+      input.placeholder,
+      input.getAttribute("aria-label") ?? "",
+      input.getAttribute("title") ?? "",
+      findLabel(input),
+      findUploadContainerText(input)
+    ].join(" ")
+  );
+  let score = isVisibleField(input) ? 2 : 0;
+
+  if (/\b(resume|cv|curriculum|vitae)\b/.test(text)) score += 8;
+  if (/\b(upload|attachment|attach|file)\b/.test(text)) score += 3;
+  if (/\b(pdf|doc|docx|msword|wordprocessingml)\b/.test(text)) score += 2;
+  if (input.accept && !/(pdf|doc|docx|msword|wordprocessingml|\*\/)/i.test(input.accept)) score -= 4;
+
+  return score;
 }
 
 async function resumeToFile(resume: ResumeAttachment): Promise<File> {
@@ -205,7 +229,8 @@ function selectOption(select: HTMLSelectElement, value: string): boolean {
   });
 
   if (!option) return false;
-  select.value = option.value;
+  option.selected = true;
+  setNativeValue(select, option.value);
   return true;
 }
 
@@ -250,6 +275,17 @@ function findNearbyText(element: HTMLElement): string {
   return clone.textContent ?? "";
 }
 
+function findUploadContainerText(element: HTMLElement): string {
+  const labelledBy = element.getAttribute("aria-labelledby")
+    ?.split(/\s+/)
+    .map((id) => document.getElementById(id)?.textContent ?? "")
+    .join(" ");
+  const label = element.id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(element.id)}"]`)?.textContent : "";
+  const container = element.closest("label, [role='button'], [role='group'], div, li, section, fieldset");
+
+  return normalizeWhitespace([label ?? "", labelledBy ?? "", container?.textContent ?? ""].join(" "));
+}
+
 function isVisibleField(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
   const styles = window.getComputedStyle(element);
@@ -260,10 +296,60 @@ function isFillableElement(element: Element): element is HTMLInputElement | HTML
   return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement;
 }
 
-function dispatchInputEvents(element: HTMLElement): void {
-  element.dispatchEvent(new Event("input", { bubbles: true }));
+function setNativeValue(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
+  const prototype = Object.getPrototypeOf(element) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+  const valueSetter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+
+  if (valueSetter) {
+    valueSetter.call(element, value);
+  } else {
+    element.value = value;
+  }
+}
+
+function setNativeChecked(element: HTMLInputElement, checked: boolean): void {
+  const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
+
+  if (checkedSetter) {
+    checkedSetter.call(element, checked);
+  } else {
+    element.checked = checked;
+  }
+}
+
+function dispatchFillEvents(element: HTMLElement): void {
+  element.focus({ preventScroll: true });
+  element.dispatchEvent(new FocusEvent("focus", { bubbles: false }));
+  element.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+  element.dispatchEvent(createInputEvent());
   element.dispatchEvent(new Event("change", { bubbles: true }));
-  element.dispatchEvent(new Event("blur", { bubbles: true }));
+  element.dispatchEvent(new FocusEvent("blur", { bubbles: false }));
+  element.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  element.blur();
+}
+
+function dispatchUploadEvents(input: HTMLInputElement, dataTransfer: DataTransfer): void {
+  const targets = new Set<HTMLElement>([
+    input,
+    input.closest<HTMLElement>("label, [role='button'], [role='group'], div, li, section, fieldset") ?? input
+  ]);
+
+  for (const target of targets) {
+    target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer }));
+    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+    target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+  }
+}
+
+function createInputEvent(): Event {
+  if (typeof InputEvent === "function") {
+    return new InputEvent("input", {
+      bubbles: true,
+      inputType: "insertReplacementText"
+    });
+  }
+
+  return new Event("input", { bubbles: true });
 }
 
 function markFilled(element: HTMLElement): void {

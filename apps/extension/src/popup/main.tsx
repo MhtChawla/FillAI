@@ -6,7 +6,6 @@ import {
   FileText,
   Loader2,
   Plus,
-  Save,
   Sparkles,
   Trash2,
   Upload,
@@ -112,9 +111,17 @@ function Popup() {
     void runAtsMatch();
   }, [autoMatchStarted, currentResume, settingsLoaded]);
 
-  async function saveSettings(nextSettings = settings) {
+  async function persistSettings(nextSettings = settings) {
     await chrome.storage.local.set({ [storageKey]: nextSettings });
-    setState({ status: "success", message: "Settings saved.", warnings: [] });
+  }
+
+  function updateSettings(nextSettings: ExtensionSettings) {
+    setSettings(nextSettings);
+    if (settingsLoaded) {
+      void persistSettings(nextSettings).catch((error) => {
+        setState({ status: "error", message: getErrorMessage(error) });
+      });
+    }
   }
 
   async function testApi() {
@@ -128,7 +135,7 @@ function Popup() {
   }
 
   async function runAutofill() {
-    await saveSettings(settings);
+    await persistSettings(settings);
     setState({ status: "loading", message: "Valuating & populating the application..." });
 
     try {
@@ -165,7 +172,7 @@ function Popup() {
   }
 
   async function runAtsMatch() {
-    await saveSettings(settings);
+    await persistSettings(settings);
     setMatchState({ status: "loading", message: "Reading this job page and comparing it with your current resume..." });
     setMatchResult(null);
 
@@ -199,13 +206,13 @@ function Popup() {
   }
 
   function updateProfile<K extends keyof CandidateProfile>(key: K, value: CandidateProfile[K]) {
-    setSettings((current) => ({
-      ...current,
+    updateSettings({
+      ...settings,
       profile: {
-        ...current.profile,
+        ...settings.profile,
         [key]: value
       }
-    }));
+    });
   }
 
   function addCustomField() {
@@ -244,10 +251,14 @@ function Popup() {
 
     const nextResumes = await Promise.all(selectedFiles.map(toStoredResume));
     const resumes = [...settings.profile.resumes, ...nextResumes];
-    updateProfile("resumes", resumes);
-    if (!settings.profile.currentResumeId && resumes[0]) {
-      updateProfile("currentResumeId", resumes[0].id);
-    }
+    updateSettings({
+      ...settings,
+      profile: {
+        ...settings.profile,
+        resumes,
+        currentResumeId: settings.profile.currentResumeId || resumes[0]?.id || ""
+      }
+    });
   }
 
   function setCurrentResume(id: string) {
@@ -256,14 +267,14 @@ function Popup() {
 
   function removeResume(id: string) {
     const resumes = settings.profile.resumes.filter((resume) => resume.id !== id);
-    setSettings((current) => ({
-      ...current,
+    updateSettings({
+      ...settings,
       profile: {
-        ...current.profile,
+        ...settings.profile,
         resumes,
-        currentResumeId: current.profile.currentResumeId === id ? (resumes[0]?.id ?? "") : current.profile.currentResumeId
+        currentResumeId: settings.profile.currentResumeId === id ? (resumes[0]?.id ?? "") : settings.profile.currentResumeId
       }
-    }));
+    });
   }
 
   return (
@@ -282,10 +293,6 @@ function Popup() {
         <button className="primary" disabled={state.status === "loading"} onClick={runAutofill} type="button">
           {state.status === "loading" ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
           Autofill page
-        </button>
-        <button className="secondary" onClick={() => void saveSettings()} type="button">
-          <Save size={17} />
-          Save
         </button>
       </section>
 
@@ -325,7 +332,7 @@ function Popup() {
           <section className="settings">
             <label>
               API URL
-              <input value={settings.apiBaseUrl} onChange={(event) => setSettings({ ...settings, apiBaseUrl: event.target.value })} />
+              <input value={settings.apiBaseUrl} onChange={(event) => updateSettings({ ...settings, apiBaseUrl: event.target.value })} />
             </label>
           </section>
 

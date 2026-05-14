@@ -10,7 +10,8 @@ const env = z
     OPENAI_API_KEY: z.string().min(1),
     PORT: z.coerce.number().int().positive().default(8787),
     CORS_ORIGIN: z.string().default("*"),
-    OPENAI_MODEL: z.string().default("gpt-5.4")
+    OPENAI_MODEL: z.string().default("gpt-5.4-mini"),
+    OPENAI_FALLBACK_MODEL: z.string().default("gpt-5.4")
   })
   .safeParse(process.env);
 
@@ -156,6 +157,7 @@ await app.register(cors, {
 app.get("/health", async () => ({
   ok: true,
   model: config.OPENAI_MODEL,
+  fallbackModel: getFallbackModel(config.OPENAI_MODEL),
   provider: "openai"
 }));
 
@@ -168,24 +170,13 @@ app.post("/api/autofill", async (request, reply) => {
     });
   }
 
-  const response = await openai.responses.create({
-    model: config.OPENAI_MODEL,
-    max_output_tokens: 3500,
-    temperature: 0.2,
-    instructions:
-      "You are a careful job application autofill assistant. Use the candidate profile and current resume file as the source of truth. Do not invent credentials, degrees, employers, dates, salaries, immigration status, protected-class information, or legal claims. If a field needs information that is missing, omit the fill and add a warning.",
-    input: [
-      {
-        role: "user",
-        content: buildAutofillContent(parsed.data)
-      }
-    ],
-    text: {
-      format: autofillJsonSchema
-    }
-  });
+  const result = await createAutofillResult(parsed.data, config.OPENAI_MODEL);
+  const fallbackModel = getFallbackModel(config.OPENAI_MODEL);
+  if (fallbackModel && shouldRetryAutofill(result, parsed.data.fields.length)) {
+    app.log.info({ model: config.OPENAI_MODEL, fallbackModel }, "Retrying autofill with fallback model");
+    return createAutofillResult(parsed.data, fallbackModel);
+  }
 
-  const result = parseOpenAIJson(response.output_text);
   return result;
 });
 
@@ -232,30 +223,97 @@ app.post("/api/ats-match", async (request, reply) => {
     });
   }
 
-  const response = await openai.responses.create({
-    model: config.OPENAI_MODEL,
-    max_output_tokens: 2600,
-    temperature: 0.2,
-    instructions:
-      "You are a truthful ATS resume-to-job matching assistant. Compare only the supplied current resume/profile against the job page text. Do not invent experience. Penalize critical missing requirements more than nice-to-have gaps.",
-    input: [
-      {
-        role: "user",
-        content: buildAtsMatchContent(parsed.data)
-      }
-    ],
-    text: {
-      format: atsMatchJsonSchema
-    }
-  });
+  const result = await createAtsMatchResult(parsed.data, config.OPENAI_MODEL);
+  const fallbackModel = getFallbackModel(config.OPENAI_MODEL);
+  if (fallbackModel && shouldRetryAtsMatch(result)) {
+    app.log.info({ model: config.OPENAI_MODEL, fallbackModel }, "Retrying ATS match with fallback model");
+    return createAtsMatchResult(parsed.data, fallbackModel);
+  }
 
-  return parseAtsMatchJson(response.output_text);
+  return result;
 });
 
 app.listen({ port: config.PORT, host: "0.0.0.0" }).catch((error) => {
   app.log.error(error);
   process.exit(1);
 });
+
+async function createAutofillResult(input: z.infer<typeof autofillRequestSchema>, model: string): Promise<AutofillResponse> {
+  try {
+    const response = await openai.responses.create({
+      model,
+      max_output_tokens: 3500,
+      temperature: 0.2,
+      instructions:
+        "You are a careful job application autofill assistant. Use the candidate profile and current resume file as the source of truth. Do not invent credentials, degrees, employers, dates, salaries, immigration status, protected-class information, or legal claims. If a field needs information that is missing, omit the fill and add a warning.",
+      input: [
+        {
+          role: "user",
+          content: buildAutofillContent(input)
+        }
+      ],
+      text: {
+        format: autofillJsonSchema
+      }
+    });
+
+    return parseOpenAIJson(response.output_text);
+  } catch (error) {
+    const fallbackModel = getFallbackModel(model);
+    if (!fallbackModel) throw error;
+
+    app.log.warn({ model, fallbackModel, error }, "Autofill model failed, retrying with fallback model");
+    return createAutofillResult(input, fallbackModel);
+  }
+}
+
+async function createAtsMatchResult(input: z.infer<typeof atsMatchRequestSchema>, model: string): Promise<AtsMatchResponse> {
+  try {
+    const response = await openai.responses.create({
+      model,
+      max_output_tokens: 2600,
+      temperature: 0.2,
+      instructions:
+        "You are a truthful ATS resume-to-job matching assistant. Compare only the supplied current resume/profile against the job page text. Do not invent experience. Penalize critical missing requirements more than nice-to-have gaps.",
+      input: [
+        {
+          role: "user",
+          content: buildAtsMatchContent(input)
+        }
+      ],
+      text: {
+        format: atsMatchJsonSchema
+      }
+    });
+
+    return parseAtsMatchJson(response.output_text);
+  } catch (error) {
+    const fallbackModel = getFallbackModel(model);
+    if (!fallbackModel) throw error;
+
+    app.log.warn({ model, fallbackModel, error }, "ATS match model failed, retrying with fallback model");
+    return createAtsMatchResult(input, fallbackModel);
+  }
+}
+
+function getFallbackModel(model: string): string {
+  return config.OPENAI_FALLBACK_MODEL && config.OPENAI_FALLBACK_MODEL !== model ? config.OPENAI_FALLBACK_MODEL : "";
+}
+
+function shouldRetryAutofill(result: AutofillResponse, fieldCount: number): boolean {
+  if (fieldCount > 0 && result.fills.length === 0) return true;
+
+  const averageConfidence =
+    result.fills.length > 0 ? result.fills.reduce((total, fill) => total + fill.confidence, 0) / result.fills.length : 0;
+  return result.fills.length > 0 && averageConfidence < 0.55;
+}
+
+function shouldRetryAtsMatch(result: AtsMatchResponse): boolean {
+  const hasExtractedItems = result.requirements.length > 0 || result.responsibilities.length > 0;
+  const hasSkills = result.matchedSkills.length > 0 || result.missingSkills.length > 0;
+  const hasAnyScore = result.overallScore > 0 || result.skillsScore > 0 || result.requirementsScore > 0 || result.responsibilitiesScore > 0;
+  return !hasExtractedItems || !hasSkills || !hasAnyScore;
+}
 
 function buildAutofillContent(input: z.infer<typeof autofillRequestSchema>): string | ResponseInputMessageContentList {
   const prompt = buildAutofillPrompt(input);

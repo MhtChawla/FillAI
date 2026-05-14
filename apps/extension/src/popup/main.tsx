@@ -72,24 +72,50 @@ function Popup() {
         | "fullName"
         | "email"
         | "phone"
+        | "phoneCountryCode"
         | "location"
+        | "addressLine1"
+        | "pincode"
+        | "country"
+        | "state"
         | "linkedin"
+        | "github"
         | "portfolio"
+        | "collegeUniversity"
+        | "experienceYears"
+        | "totalExperienceYears"
         | "workAuthorization"
         | "sponsorship"
         | "salaryExpectation"
+        | "expectedSalary"
+        | "currentOffer"
+        | "offerInHand"
+        | "nationality"
         | "noticePeriod"
       >
     > = [
       "fullName",
       "email",
       "phone",
+      "phoneCountryCode",
       "location",
+      "addressLine1",
+      "pincode",
+      "country",
+      "state",
       "linkedin",
+      "github",
       "portfolio",
+      "collegeUniversity",
+      "experienceYears",
+      "totalExperienceYears",
       "workAuthorization",
       "sponsorship",
       "salaryExpectation",
+      "expectedSalary",
+      "currentOffer",
+      "offerInHand",
+      "nationality",
       "noticePeriod"
     ];
     const filledStandardFields = standardFields.filter((key) => settings.profile[key].trim().length > 0).length;
@@ -339,12 +365,25 @@ function Popup() {
             <Field label="Full name" value={settings.profile.fullName} onChange={(value) => updateProfile("fullName", value)} />
             <Field label="Email" value={settings.profile.email} onChange={(value) => updateProfile("email", value)} />
             <Field label="Phone" value={settings.profile.phone} onChange={(value) => updateProfile("phone", value)} />
+            <Field label="Phone country code" value={settings.profile.phoneCountryCode} onChange={(value) => updateProfile("phoneCountryCode", value)} />
             <Field label="Location" value={settings.profile.location} onChange={(value) => updateProfile("location", value)} />
+            <Field label="Address line 1" value={settings.profile.addressLine1} onChange={(value) => updateProfile("addressLine1", value)} />
+            <Field label="Pincode / postal code" value={settings.profile.pincode} onChange={(value) => updateProfile("pincode", value)} />
+            <Field label="Country" value={settings.profile.country} onChange={(value) => updateProfile("country", value)} />
+            <Field label="State" value={settings.profile.state} onChange={(value) => updateProfile("state", value)} />
             <Field label="LinkedIn" value={settings.profile.linkedin} onChange={(value) => updateProfile("linkedin", value)} />
+            <Field label="GitHub" value={settings.profile.github} onChange={(value) => updateProfile("github", value)} />
             <Field label="Portfolio" value={settings.profile.portfolio} onChange={(value) => updateProfile("portfolio", value)} />
+            <Field label="College / university" value={settings.profile.collegeUniversity} onChange={(value) => updateProfile("collegeUniversity", value)} />
+            <Field label="Experience years" value={settings.profile.experienceYears} onChange={(value) => updateProfile("experienceYears", value)} />
+            <Field label="Total experience (in years)" value={settings.profile.totalExperienceYears} onChange={(value) => updateProfile("totalExperienceYears", value)} />
             <Field label="Work authorization" value={settings.profile.workAuthorization} onChange={(value) => updateProfile("workAuthorization", value)} />
             <Field label="Sponsorship" value={settings.profile.sponsorship} onChange={(value) => updateProfile("sponsorship", value)} />
             <Field label="Salary expectation" value={settings.profile.salaryExpectation} onChange={(value) => updateProfile("salaryExpectation", value)} />
+            <Field label="Expected salary" value={settings.profile.expectedSalary} onChange={(value) => updateProfile("expectedSalary", value)} />
+            <Field label="Current offer" value={settings.profile.currentOffer} onChange={(value) => updateProfile("currentOffer", value)} />
+            <Field label="Offer in hand" value={settings.profile.offerInHand} onChange={(value) => updateProfile("offerInHand", value)} />
+            <Field label="Nationality" value={settings.profile.nationality} onChange={(value) => updateProfile("nationality", value)} />
             <Field label="Notice period" value={settings.profile.noticePeriod} onChange={(value) => updateProfile("noticePeriod", value)} />
           </section>
 

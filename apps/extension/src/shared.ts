@@ -16,13 +16,26 @@ export type CandidateProfile = {
   fullName: string;
   email: string;
   phone: string;
+  phoneCountryCode: string;
   location: string;
+  addressLine1: string;
+  pincode: string;
+  country: string;
+  state: string;
   linkedin: string;
+  github: string;
   portfolio: string;
+  collegeUniversity: string;
+  experienceYears: string;
+  totalExperienceYears: string;
   resumeText: string;
   workAuthorization: string;
   sponsorship: string;
   salaryExpectation: string;
+  expectedSalary: string;
+  currentOffer: string;
+  offerInHand: string;
+  nationality: string;
   noticePeriod: string;
   customNotes: string;
   customFields: CustomProfileField[];
@@ -105,13 +118,26 @@ export const defaultSettings: ExtensionSettings = {
     fullName: "",
     email: "",
     phone: "",
+    phoneCountryCode: "",
     location: "",
+    addressLine1: "",
+    pincode: "",
+    country: "",
+    state: "",
     linkedin: "",
+    github: "",
     portfolio: "",
+    collegeUniversity: "",
+    experienceYears: "",
+    totalExperienceYears: "",
     resumeText: "",
     workAuthorization: "",
     sponsorship: "",
     salaryExpectation: "",
+    expectedSalary: "",
+    currentOffer: "",
+    offerInHand: "",
+    nationality: "",
     noticePeriod: "",
     customNotes: "",
     customFields: [],

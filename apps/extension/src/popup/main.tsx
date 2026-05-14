@@ -103,7 +103,7 @@ function Popup() {
       const response = await sendBackgroundMessage<{
         ok: boolean;
         error?: string;
-        data?: { applied: number; skipped: number; detectedFields: number; warnings: string[] };
+        data?: { applied: number; skipped: number; detectedFields: number; warnings: string[]; resumeAttached: boolean };
       }>({
         type: "RUN_AUTOFILL",
         tabId: tab.id,
@@ -116,7 +116,12 @@ function Popup() {
 
       setState({
         status: "success",
-        message: `Applied ${response.data.applied} fields. Detected ${response.data.detectedFields}; skipped ${response.data.skipped}.`,
+        message: [
+          `Applied ${response.data.applied} fields. Detected ${response.data.detectedFields}; skipped ${response.data.skipped}.`,
+          response.data.resumeAttached ? "Resume attached." : ""
+        ]
+          .filter(Boolean)
+          .join(" "),
         warnings: response.data.warnings
       });
     } catch (error) {

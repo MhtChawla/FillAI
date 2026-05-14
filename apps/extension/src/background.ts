@@ -68,7 +68,8 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
     fills: result.fills
   });
   const resume = getCurrentResume(settings.profile);
-  const attachmentWarnings = [...result.warnings];
+  let attachmentWarnings = [...result.warnings];
+  let resumeAttached = false;
 
   if (resume) {
     const attachResponse = await sendToTab<{ attached: boolean; warning?: string }>(tabId, {
@@ -80,7 +81,10 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
       }
     });
 
-    if (attachResponse.warning) {
+    resumeAttached = attachResponse.attached;
+    if (attachResponse.attached) {
+      attachmentWarnings = attachmentWarnings.filter((warning) => !isResumeAttachmentWarning(warning));
+    } else if (attachResponse.warning) {
       attachmentWarnings.push(attachResponse.warning);
     }
   }
@@ -92,9 +96,14 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
       warnings: attachmentWarnings,
       applied: applyResponse.applied,
       skipped: applyResponse.skipped,
-      detectedFields: contextResponse.payload.fields.length
+      detectedFields: contextResponse.payload.fields.length,
+      resumeAttached
     }
   };
+}
+
+function isResumeAttachmentWarning(warning: string): boolean {
+  return /\b(resume|cv|pdf|file|document|attachment|upload|attach)\b/i.test(warning);
 }
 
 function getCurrentResume(profile: CandidateProfile) {

@@ -18,6 +18,11 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResp
     return;
   }
 
+  if (message.type === "COLLECT_JOB_CONTEXT") {
+    sendResponse({ jobContext: collectJobContext() });
+    return;
+  }
+
   if (message.type === "APPLY_FILLS") {
     sendResponse(applyFills(message.fills));
     return;

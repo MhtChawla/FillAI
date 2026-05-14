@@ -1,7 +1,20 @@
-import { CheckCircle2, FileText, Loader2, Plus, Save, Sparkles, Trash2, Upload, Wifi } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  CircleAlert,
+  CircleX,
+  FileText,
+  Loader2,
+  Plus,
+  Save,
+  Sparkles,
+  Trash2,
+  Upload,
+  Wifi
+} from "lucide-react";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { BackgroundMessage, CandidateProfile, CustomProfileField, ExtensionSettings, StoredResume } from "../shared";
+import type { AtsMatchItem, AtsMatchResult, BackgroundMessage, CandidateProfile, CustomProfileField, ExtensionSettings, StoredResume } from "../shared";
 import { defaultSettings } from "../shared";
 import "./styles.css";
 
@@ -14,9 +27,14 @@ type RunState =
 const storageKey = "jobApplyAiSettings";
 const maxResumeBytes = 50 * 1024 * 1024;
 
+type ActiveTab = "autofill" | "match";
+
 function Popup() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultSettings);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("autofill");
   const [state, setState] = useState<RunState>({ status: "idle", message: "Ready to fill the current page." });
+  const [matchState, setMatchState] = useState<RunState>({ status: "idle", message: "Ready to score the current job." });
+  const [matchResult, setMatchResult] = useState<AtsMatchResult | null>(null);
 
   useEffect(() => {
     void chrome.storage.local.get(storageKey).then((stored) => {
@@ -77,6 +95,11 @@ function Popup() {
     );
   }, [settings.profile]);
 
+  const currentResume = useMemo(
+    () => settings.profile.resumes.find((resume) => resume.id === settings.profile.currentResumeId) ?? settings.profile.resumes[0],
+    [settings.profile.currentResumeId, settings.profile.resumes]
+  );
+
   async function saveSettings(nextSettings = settings) {
     await chrome.storage.local.set({ [storageKey]: nextSettings });
     setState({ status: "success", message: "Settings saved.", warnings: [] });
@@ -126,6 +149,40 @@ function Popup() {
       });
     } catch (error) {
       setState({ status: "error", message: getErrorMessage(error) });
+    }
+  }
+
+  async function runAtsMatch() {
+    await saveSettings(settings);
+    setMatchState({ status: "loading", message: "Reading this job page and comparing it with your current resume..." });
+    setMatchResult(null);
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("No active tab found.");
+
+      const response = await sendBackgroundMessage<{
+        ok: boolean;
+        error?: string;
+        data?: AtsMatchResult;
+      }>({
+        type: "RUN_ATS_MATCH",
+        tabId: tab.id,
+        settings
+      });
+
+      if (!response.ok || !response.data) {
+        throw new Error(response.error ?? "ATS match failed.");
+      }
+
+      setMatchResult(response.data);
+      setMatchState({
+        status: "success",
+        message: `Match score ready for ${response.data.jobTitle || "this role"}.`,
+        warnings: response.data.warnings
+      });
+    } catch (error) {
+      setMatchState({ status: "error", message: getErrorMessage(error) });
     }
   }
 
@@ -220,29 +277,60 @@ function Popup() {
         </button>
       </section>
 
-      <StatusView state={state} />
+      <nav className="tabs" aria-label="FillAI sections">
+        <button className={activeTab === "autofill" ? "tab active" : "tab"} onClick={() => setActiveTab("autofill")} type="button">
+          <Sparkles size={16} />
+          Autofill
+        </button>
+        <button className={activeTab === "match" ? "tab active" : "tab"} onClick={() => setActiveTab("match")} type="button">
+          <BriefcaseBusiness size={16} />
+          ATS Match
+        </button>
+      </nav>
 
-      <section className="settings">
-        <label>
-          API URL
-          <input value={settings.apiBaseUrl} onChange={(event) => setSettings({ ...settings, apiBaseUrl: event.target.value })} />
-        </label>
-      </section>
+      {activeTab === "match" ? (
+        <section className="match-tab">
+          <div className="current-job-resume">
+            <div>
+              <span>Current resume</span>
+              <strong>{currentResume?.name ?? "No resume selected"}</strong>
+            </div>
+            <FileText size={18} />
+          </div>
 
-      <section className="profile-grid">
-        <Field label="Full name" value={settings.profile.fullName} onChange={(value) => updateProfile("fullName", value)} />
-        <Field label="Email" value={settings.profile.email} onChange={(value) => updateProfile("email", value)} />
-        <Field label="Phone" value={settings.profile.phone} onChange={(value) => updateProfile("phone", value)} />
-        <Field label="Location" value={settings.profile.location} onChange={(value) => updateProfile("location", value)} />
-        <Field label="LinkedIn" value={settings.profile.linkedin} onChange={(value) => updateProfile("linkedin", value)} />
-        <Field label="Portfolio" value={settings.profile.portfolio} onChange={(value) => updateProfile("portfolio", value)} />
-        <Field label="Work authorization" value={settings.profile.workAuthorization} onChange={(value) => updateProfile("workAuthorization", value)} />
-        <Field label="Sponsorship" value={settings.profile.sponsorship} onChange={(value) => updateProfile("sponsorship", value)} />
-        <Field label="Salary expectation" value={settings.profile.salaryExpectation} onChange={(value) => updateProfile("salaryExpectation", value)} />
-        <Field label="Notice period" value={settings.profile.noticePeriod} onChange={(value) => updateProfile("noticePeriod", value)} />
-      </section>
+          <button className="primary wide-action" disabled={matchState.status === "loading" || !currentResume} onClick={runAtsMatch} type="button">
+            {matchState.status === "loading" ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
+            Score current job
+          </button>
 
-      <section className="resume-manager">
+          <StatusView state={matchState} />
+          {matchResult ? <AtsMatchView result={matchResult} /> : null}
+        </section>
+      ) : (
+        <>
+          <StatusView state={state} />
+
+          <section className="settings">
+            <label>
+              API URL
+              <input value={settings.apiBaseUrl} onChange={(event) => setSettings({ ...settings, apiBaseUrl: event.target.value })} />
+            </label>
+          </section>
+
+          <section className="profile-grid">
+            <Field label="Full name" value={settings.profile.fullName} onChange={(value) => updateProfile("fullName", value)} />
+            <Field label="Email" value={settings.profile.email} onChange={(value) => updateProfile("email", value)} />
+            <Field label="Phone" value={settings.profile.phone} onChange={(value) => updateProfile("phone", value)} />
+            <Field label="Location" value={settings.profile.location} onChange={(value) => updateProfile("location", value)} />
+            <Field label="LinkedIn" value={settings.profile.linkedin} onChange={(value) => updateProfile("linkedin", value)} />
+            <Field label="Portfolio" value={settings.profile.portfolio} onChange={(value) => updateProfile("portfolio", value)} />
+            <Field label="Work authorization" value={settings.profile.workAuthorization} onChange={(value) => updateProfile("workAuthorization", value)} />
+            <Field label="Sponsorship" value={settings.profile.sponsorship} onChange={(value) => updateProfile("sponsorship", value)} />
+            <Field label="Salary expectation" value={settings.profile.salaryExpectation} onChange={(value) => updateProfile("salaryExpectation", value)} />
+            <Field label="Notice period" value={settings.profile.noticePeriod} onChange={(value) => updateProfile("noticePeriod", value)} />
+          </section>
+
+          <section className="resume-manager">
         <div className="section-heading">
           <div>
             <h2>Resume files</h2>
@@ -284,9 +372,9 @@ function Popup() {
             ))}
           </div>
         ) : null}
-      </section>
+          </section>
 
-      <section className="custom-fields">
+          <section className="custom-fields">
         <div className="section-heading">
           <div>
             <h2>Custom fields</h2>
@@ -310,7 +398,9 @@ function Popup() {
             ))}
           </div>
         ) : null}
-      </section>
+          </section>
+        </>
+      )}
     </main>
   );
 }
@@ -340,6 +430,104 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.addEventListener("error", () => reject(reader.error ?? new Error("Could not read resume file.")));
     reader.readAsDataURL(file);
   });
+}
+
+function AtsMatchView({ result }: { result: AtsMatchResult }) {
+  return (
+    <section className="match-results">
+      <div className="score-card">
+        <div>
+          <span>Resume match score</span>
+          <strong>{result.overallScore}%</strong>
+        </div>
+        <ScoreBar label="Skills" score={result.skillsScore} tone="blue" />
+        <ScoreBar label="Requirements" score={result.requirementsScore} tone="green" />
+        <ScoreBar label="Responsibilities" score={result.responsibilitiesScore} tone="pink" />
+      </div>
+
+      <div className="job-summary">
+        <BriefcaseBusiness size={18} />
+        <div>
+          <strong>{result.jobTitle || "Detected job"}</strong>
+          <span>{result.company || "Company not detected"}</span>
+        </div>
+      </div>
+
+      <SkillSection
+        title={`Skills matched (${result.matchedSkills.length}/${result.matchedSkills.length + result.missingSkills.length})`}
+        skills={result.matchedSkills}
+        missing={false}
+      />
+      <SkillSection title="Skills to improve" skills={result.missingSkills} missing />
+      <MatchList title="Job requirements" items={result.requirements} />
+      <MatchList title="Job responsibilities" items={result.responsibilities} />
+
+      {result.recommendations.length > 0 ? (
+        <section className="match-panel">
+          <h2>Resume suggestions</h2>
+          <ul className="recommendations">
+            {result.recommendations.slice(0, 5).map((recommendation) => (
+              <li key={recommendation}>{recommendation}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function ScoreBar({ label, score, tone }: { label: string; score: number; tone: "blue" | "green" | "pink" }) {
+  return (
+    <div className="score-row">
+      <div>
+        <span>{label}</span>
+        <strong>{score}%</strong>
+      </div>
+      <div className="score-track">
+        <span className={`score-fill ${tone}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function SkillSection({ title, skills, missing }: { title: string; skills: string[]; missing: boolean }) {
+  if (!skills.length) return null;
+
+  return (
+    <section className="match-panel">
+      <h2>{title}</h2>
+      <div className="skill-cloud">
+        {skills.slice(0, 12).map((skill) => (
+          <span className={missing ? "skill missing" : "skill matched"} key={skill}>
+            {skill}
+            {missing ? <CircleX size={14} /> : <CheckCircle2 size={14} />}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MatchList({ title, items }: { title: string; items: AtsMatchItem[] }) {
+  if (!items.length) return null;
+
+  return (
+    <section className="match-panel">
+      <h2>{title}</h2>
+      <div className="match-list">
+        {items.slice(0, 6).map((item) => (
+          <article className="match-item" key={`${item.text}-${item.importance}`}>
+            {item.matched ? <CheckCircle2 className="match-icon" size={17} /> : <CircleAlert className="gap-icon" size={17} />}
+            <div>
+              <p>{item.text}</p>
+              <span className={`importance ${item.importance}`}>{item.importance}</span>
+              <small>{item.evidence}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function Field(props: { label: string; value: string; onChange: (value: string) => void }) {

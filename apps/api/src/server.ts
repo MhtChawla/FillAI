@@ -82,6 +82,17 @@ const autofillRequestSchema = z.object({
   fields: z.array(formFieldSchema).min(1).max(120)
 });
 
+const jobContextSchema = z.object({
+  url: z.string().url().optional().or(z.literal("")),
+  title: z.string().default(""),
+  pageText: z.string().min(1).max(20000)
+});
+
+const atsMatchRequestSchema = z.object({
+  profile: candidateProfileSchema,
+  jobContext: jobContextSchema
+});
+
 type AutofillResponse = {
   fills: Array<{
     id: string;
@@ -89,6 +100,31 @@ type AutofillResponse = {
     confidence: number;
     reason?: string;
   }>;
+  warnings: string[];
+};
+
+type AtsMatchResponse = {
+  overallScore: number;
+  skillsScore: number;
+  requirementsScore: number;
+  responsibilitiesScore: number;
+  jobTitle: string;
+  company: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+  requirements: Array<{
+    text: string;
+    matched: boolean;
+    importance: "critical" | "important" | "nice-to-have";
+    evidence: string;
+  }>;
+  responsibilities: Array<{
+    text: string;
+    matched: boolean;
+    importance: "critical" | "important" | "nice-to-have";
+    evidence: string;
+  }>;
+  recommendations: string[];
   warnings: string[];
 };
 
@@ -174,6 +210,35 @@ app.post("/api/cover-letter", async (request, reply) => {
   };
 });
 
+app.post("/api/ats-match", async (request, reply) => {
+  const parsed = atsMatchRequestSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.code(400).send({
+      error: "Invalid ATS match payload",
+      details: parsed.error.flatten()
+    });
+  }
+
+  const response = await openai.responses.create({
+    model: config.OPENAI_MODEL,
+    max_output_tokens: 2600,
+    temperature: 0.2,
+    instructions:
+      "You are a truthful ATS resume-to-job matching assistant. Compare only the supplied current resume/profile against the job page text. Do not invent experience. Penalize critical missing requirements more than nice-to-have gaps.",
+    input: [
+      {
+        role: "user",
+        content: buildAtsMatchContent(parsed.data)
+      }
+    ],
+    text: {
+      format: atsMatchJsonSchema
+    }
+  });
+
+  return parseAtsMatchJson(response.output_text);
+});
+
 app.listen({ port: config.PORT, host: "0.0.0.0" }).catch((error) => {
   app.log.error(error);
   process.exit(1);
@@ -247,6 +312,86 @@ Fields:
 ${JSON.stringify(input.fields, null, 2)}`;
 }
 
+function buildAtsMatchContent(input: z.infer<typeof atsMatchRequestSchema>): string | ResponseInputMessageContentList {
+  const prompt = buildAtsMatchPrompt(input);
+  const currentResume = getCurrentResume(input.profile);
+  if (!currentResume?.dataUrl) {
+    return prompt;
+  }
+
+  return [
+    {
+      type: "input_text",
+      text: prompt
+    },
+    {
+      type: "input_file",
+      filename: currentResume.name || "resume",
+      file_data: currentResume.dataUrl
+    }
+  ];
+}
+
+function buildAtsMatchPrompt(input: z.infer<typeof atsMatchRequestSchema>): string {
+  const currentResume = getCurrentResume(input.profile);
+  const promptProfile = {
+    ...input.profile,
+    resumes: input.profile.resumes.map((resume) => ({
+      id: resume.id,
+      name: resume.name,
+      mimeType: resume.mimeType,
+      uploadedAt: resume.uploadedAt,
+      isCurrent: resume.id === currentResume?.id
+    }))
+  };
+
+  return `Score how well the current resume matches this job description.
+
+Return strict JSON only:
+{
+  "overallScore": 0,
+  "skillsScore": 0,
+  "requirementsScore": 0,
+  "responsibilitiesScore": 0,
+  "jobTitle": "",
+  "company": "",
+  "matchedSkills": ["skill"],
+  "missingSkills": ["skill"],
+  "requirements": [
+    {
+      "text": "requirement from the job",
+      "matched": true,
+      "importance": "critical",
+      "evidence": "short resume-backed evidence or gap"
+    }
+  ],
+  "responsibilities": [
+    {
+      "text": "responsibility from the job",
+      "matched": false,
+      "importance": "important",
+      "evidence": "short resume-backed evidence or gap"
+    }
+  ],
+  "recommendations": ["specific resume improvement"],
+  "warnings": ["short warning"]
+}
+
+Rules:
+- Scores are integers from 0 to 100.
+- Extract 4-10 important skills, then split them into matchedSkills and missingSkills.
+- Extract 3-6 requirements and 3-6 responsibilities from the job page.
+- Mark an item matched only when the resume/profile directly supports it or strongly implies it.
+- Keep evidence and recommendations concise.
+- If the page text is noisy, focus on the actual job posting content and add a warning.
+
+Candidate profile:
+${JSON.stringify(promptProfile, null, 2)}
+
+Job page:
+${JSON.stringify(input.jobContext, null, 2)}`;
+}
+
 function getCurrentResume(profile: z.infer<typeof candidateProfileSchema>) {
   return profile.resumes.find((resume) => resume.id === profile.currentResumeId) ?? profile.resumes[0];
 }
@@ -288,6 +433,74 @@ const autofillJsonSchema = {
   }
 } as const;
 
+const atsMatchItemSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    text: { type: "string" },
+    matched: { type: "boolean" },
+    importance: { type: "string", enum: ["critical", "important", "nice-to-have"] },
+    evidence: { type: "string" }
+  },
+  required: ["text", "matched", "importance", "evidence"]
+} as const;
+
+const atsMatchJsonSchema = {
+  type: "json_schema",
+  name: "ats_match_response",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      overallScore: { type: "integer", minimum: 0, maximum: 100 },
+      skillsScore: { type: "integer", minimum: 0, maximum: 100 },
+      requirementsScore: { type: "integer", minimum: 0, maximum: 100 },
+      responsibilitiesScore: { type: "integer", minimum: 0, maximum: 100 },
+      jobTitle: { type: "string" },
+      company: { type: "string" },
+      matchedSkills: {
+        type: "array",
+        items: { type: "string" }
+      },
+      missingSkills: {
+        type: "array",
+        items: { type: "string" }
+      },
+      requirements: {
+        type: "array",
+        items: atsMatchItemSchema
+      },
+      responsibilities: {
+        type: "array",
+        items: atsMatchItemSchema
+      },
+      recommendations: {
+        type: "array",
+        items: { type: "string" }
+      },
+      warnings: {
+        type: "array",
+        items: { type: "string" }
+      }
+    },
+    required: [
+      "overallScore",
+      "skillsScore",
+      "requirementsScore",
+      "responsibilitiesScore",
+      "jobTitle",
+      "company",
+      "matchedSkills",
+      "missingSkills",
+      "requirements",
+      "responsibilities",
+      "recommendations",
+      "warnings"
+    ]
+  }
+} as const;
+
 function parseOpenAIJson(text: string): AutofillResponse {
   const cleaned = text
     .trim()
@@ -301,4 +514,33 @@ function parseOpenAIJson(text: string): AutofillResponse {
     fills: Array.isArray(parsed.fills) ? parsed.fills : [],
     warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
   };
+}
+
+function parseAtsMatchJson(text: string): AtsMatchResponse {
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  const parsed = JSON.parse(cleaned) as AtsMatchResponse;
+  return {
+    overallScore: clampScore(parsed.overallScore),
+    skillsScore: clampScore(parsed.skillsScore),
+    requirementsScore: clampScore(parsed.requirementsScore),
+    responsibilitiesScore: clampScore(parsed.responsibilitiesScore),
+    jobTitle: parsed.jobTitle || "",
+    company: parsed.company || "",
+    matchedSkills: Array.isArray(parsed.matchedSkills) ? parsed.matchedSkills : [],
+    missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills : [],
+    requirements: Array.isArray(parsed.requirements) ? parsed.requirements : [],
+    responsibilities: Array.isArray(parsed.responsibilities) ? parsed.responsibilities : [],
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+    warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
+  };
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(Number.isFinite(value) ? value : 0)));
 }

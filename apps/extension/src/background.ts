@@ -1,6 +1,7 @@
 import type {
   AutofillPayload,
   AutofillResult,
+  AtsMatchResult,
   BackgroundMessage,
   CandidateProfile,
   ContentMessage,
@@ -29,6 +30,10 @@ async function handleMessage(message: BackgroundMessage) {
 
   if (message.type === "RUN_AUTOFILL") {
     return runAutofill(message.tabId, message.settings);
+  }
+
+  if (message.type === "RUN_ATS_MATCH") {
+    return runAtsMatch(message.tabId, message.settings);
   }
 
   return { ok: false, error: "Unknown message type" };
@@ -99,6 +104,48 @@ async function runAutofill(tabId: number, settings: ExtensionSettings) {
       detectedFields: contextResponse.payload.fields.length,
       resumeAttached
     }
+  };
+}
+
+async function runAtsMatch(tabId: number, settings: ExtensionSettings) {
+  const currentResume = getCurrentResume(settings.profile);
+  if (!currentResume) {
+    return {
+      ok: false,
+      error: "Upload and select a current resume before running an ATS match."
+    };
+  }
+
+  const contextResponse = await sendToTab<{ jobContext: AutofillPayload["jobContext"] }>(tabId, {
+    type: "COLLECT_JOB_CONTEXT"
+  });
+
+  if (!contextResponse.jobContext.pageText.trim()) {
+    return {
+      ok: false,
+      error: "No readable job description text was detected on this page."
+    };
+  }
+
+  const apiResponse = await fetch(`${settings.apiBaseUrl}/api/ats-match`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      profile: profileForApi(settings.profile),
+      jobContext: contextResponse.jobContext
+    })
+  });
+
+  if (!apiResponse.ok) {
+    const text = await apiResponse.text();
+    throw new Error(`API ATS match failed: ${apiResponse.status} ${text}`);
+  }
+
+  return {
+    ok: true,
+    data: (await apiResponse.json()) as AtsMatchResult
   };
 }
 

@@ -72,6 +72,28 @@ export type AutofillResult = {
   warnings: string[];
 };
 
+export type AtsMatchItem = {
+  text: string;
+  matched: boolean;
+  importance: "critical" | "important" | "nice-to-have";
+  evidence: string;
+};
+
+export type AtsMatchResult = {
+  overallScore: number;
+  skillsScore: number;
+  requirementsScore: number;
+  responsibilitiesScore: number;
+  jobTitle: string;
+  company: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+  requirements: AtsMatchItem[];
+  responsibilities: AtsMatchItem[];
+  recommendations: string[];
+  warnings: string[];
+};
+
 export type ExtensionSettings = {
   apiBaseUrl: string;
   profile: CandidateProfile;
@@ -100,9 +122,11 @@ export const defaultSettings: ExtensionSettings = {
 
 export type ContentMessage =
   | { type: "COLLECT_FORM_CONTEXT" }
+  | { type: "COLLECT_JOB_CONTEXT" }
   | { type: "APPLY_FILLS"; fills: FillInstruction[] }
   | { type: "ATTACH_RESUME"; resume: ResumeAttachment };
 
 export type BackgroundMessage =
   | { type: "RUN_AUTOFILL"; tabId: number; settings: ExtensionSettings }
+  | { type: "RUN_ATS_MATCH"; tabId: number; settings: ExtensionSettings }
   | { type: "PING_API"; apiBaseUrl: string };

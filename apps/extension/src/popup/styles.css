@@ -36,6 +36,25 @@ header,
   justify-content: space-between;
 }
 
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -16px -16px 0;
+  background: #f7f5ef;
+  padding: 16px;
+}
+
+.toolbar {
+  position: sticky;
+  top: 67px;
+  z-index: 10;
+  margin: -14px -16px 0;
+  border-bottom: 1px solid #e1dccf;
+  background: #f7f5ef;
+  padding: 0 16px 14px;
+}
+
 h1 {
   margin: 0;
   color: #18211f;

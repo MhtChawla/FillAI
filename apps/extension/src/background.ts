@@ -126,5 +126,39 @@ function profileForApi(profile: CandidateProfile): CandidateProfile {
 }
 
 function sendToTab<T>(tabId: number, message: ContentMessage): Promise<T> {
+  return sendToTabWithContentScript(tabId, message);
+}
+
+async function sendToTabWithContentScript<T>(tabId: number, message: ContentMessage): Promise<T> {
+  try {
+    return await sendMessageToTab<T>(tabId, message);
+  } catch (error) {
+    if (!isMissingContentScriptError(error)) throw error;
+  }
+
+  await injectContentScript(tabId);
+  return sendMessageToTab<T>(tabId, message);
+}
+
+function sendMessageToTab<T>(tabId: number, message: ContentMessage): Promise<T> {
   return chrome.tabs.sendMessage(tabId, message) as Promise<T>;
+}
+
+async function injectContentScript(tabId: number) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["assets/content.js"]
+    });
+  } catch (error) {
+    throw new Error(`Could not access this page. Open or refresh a regular web page, then try again. ${getErrorMessage(error)}`);
+  }
+}
+
+function isMissingContentScriptError(error: unknown): boolean {
+  return getErrorMessage(error).includes("Receiving end does not exist");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected extension error";
 }

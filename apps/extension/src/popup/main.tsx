@@ -354,6 +354,50 @@ function Popup() {
         <>
           <StatusView state={state} />
 
+          <section className="resume-manager">
+            <div className="section-heading">
+              <div>
+                <h2>Resume files</h2>
+                <p>{settings.profile.resumes.length}/4 saved. The current resume is attached to job sites.</p>
+              </div>
+              <label className={`icon-button upload-button ${settings.profile.resumes.length >= 4 ? "disabled" : ""}`} title="Upload resume files">
+                <Upload size={18} />
+                <input
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  disabled={settings.profile.resumes.length >= 4}
+                  multiple
+                  onChange={(event) => {
+                    void addResumes(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                  type="file"
+                />
+              </label>
+            </div>
+
+            {settings.profile.resumes.length > 0 ? (
+              <div className="resume-list">
+                {settings.profile.resumes.map((resume) => (
+                  <div className="resume-row" key={resume.id}>
+                    <label className="current-resume">
+                      <input
+                        checked={settings.profile.currentResumeId === resume.id}
+                        name="currentResume"
+                        onChange={() => setCurrentResume(resume.id)}
+                        type="radio"
+                      />
+                      <FileText size={16} />
+                      <span>{resume.name}</span>
+                    </label>
+                    <button className="icon-button danger" onClick={() => removeResume(resume.id)} title="Remove resume" type="button">
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
           <section className="settings">
             <label>
               API URL
@@ -385,50 +429,6 @@ function Popup() {
             <Field label="Offer in hand" value={settings.profile.offerInHand} onChange={(value) => updateProfile("offerInHand", value)} />
             <Field label="Nationality" value={settings.profile.nationality} onChange={(value) => updateProfile("nationality", value)} />
             <Field label="Notice period" value={settings.profile.noticePeriod} onChange={(value) => updateProfile("noticePeriod", value)} />
-          </section>
-
-          <section className="resume-manager">
-        <div className="section-heading">
-          <div>
-            <h2>Resume files</h2>
-            <p>{settings.profile.resumes.length}/4 saved. The current resume is attached to job sites.</p>
-          </div>
-          <label className={`icon-button upload-button ${settings.profile.resumes.length >= 4 ? "disabled" : ""}`} title="Upload resume files">
-            <Upload size={18} />
-            <input
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              disabled={settings.profile.resumes.length >= 4}
-              multiple
-              onChange={(event) => {
-                void addResumes(event.target.files);
-                event.currentTarget.value = "";
-              }}
-              type="file"
-            />
-          </label>
-        </div>
-
-        {settings.profile.resumes.length > 0 ? (
-          <div className="resume-list">
-            {settings.profile.resumes.map((resume) => (
-              <div className="resume-row" key={resume.id}>
-                <label className="current-resume">
-                  <input
-                    checked={settings.profile.currentResumeId === resume.id}
-                    name="currentResume"
-                    onChange={() => setCurrentResume(resume.id)}
-                    type="radio"
-                  />
-                  <FileText size={16} />
-                  <span>{resume.name}</span>
-                </label>
-                <button className="icon-button danger" onClick={() => removeResume(resume.id)} title="Remove resume" type="button">
-                  <Trash2 size={17} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
           </section>
 
           <section className="custom-fields">

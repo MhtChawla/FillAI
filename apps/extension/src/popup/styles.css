@@ -23,7 +23,7 @@ main {
 }
 
 header,
-.toolbar,
+.header-actions,
 .status-line,
 .section-heading,
 .custom-field-row {
@@ -41,18 +41,9 @@ header {
   top: 0;
   z-index: 10;
   margin: -16px -16px 0;
-  background: #f7f5ef;
-  padding: 16px;
-}
-
-.toolbar {
-  position: sticky;
-  top: 67px;
-  z-index: 10;
-  margin: -14px -16px 0;
   border-bottom: 1px solid #e1dccf;
   background: #f7f5ef;
-  padding: 0 16px 14px;
+  padding: 16px;
 }
 
 h1 {
@@ -77,7 +68,7 @@ p {
   font-size: 13px;
 }
 
-.toolbar {
+.header-actions {
   gap: 9px;
 }
 
@@ -128,6 +119,12 @@ button:disabled {
   flex: 1;
   background: #116149;
   color: white;
+}
+
+.header-autofill {
+  flex: none;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .secondary,

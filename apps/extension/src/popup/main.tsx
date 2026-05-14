@@ -284,17 +284,16 @@ function Popup() {
           <h1>FillAI</h1>
           <p>{profileCompleteness}% profile ready</p>
         </div>
-        <button className="icon-button" onClick={testApi} title="Test API connection" type="button">
-          <Wifi size={18} />
-        </button>
+        <div className="header-actions">
+          <button className="primary header-autofill" disabled={state.status === "loading"} onClick={runAutofill} type="button">
+            {state.status === "loading" ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
+            Autofill
+          </button>
+          <button className="icon-button" onClick={testApi} title="Test API connection" type="button">
+            <Wifi size={18} />
+          </button>
+        </div>
       </header>
-
-      <section className="toolbar">
-        <button className="primary" disabled={state.status === "loading"} onClick={runAutofill} type="button">
-          {state.status === "loading" ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
-          Autofill page
-        </button>
-      </section>
 
       <nav className="tabs" aria-label="FillAI sections">
         <button className={activeTab === "match" ? "tab active" : "tab"} onClick={() => setActiveTab("match")} type="button">

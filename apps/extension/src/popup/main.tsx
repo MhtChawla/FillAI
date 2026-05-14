@@ -31,15 +31,20 @@ type ActiveTab = "autofill" | "match";
 
 function Popup() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultSettings);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("autofill");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("match");
   const [state, setState] = useState<RunState>({ status: "idle", message: "Ready to fill the current page." });
   const [matchState, setMatchState] = useState<RunState>({ status: "idle", message: "Ready to score the current job." });
   const [matchResult, setMatchResult] = useState<AtsMatchResult | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [autoMatchStarted, setAutoMatchStarted] = useState(false);
 
   useEffect(() => {
     void chrome.storage.local.get(storageKey).then((stored) => {
       const value = stored[storageKey] as Partial<ExtensionSettings> | undefined;
-      if (!value) return;
+      if (!value) {
+        setSettingsLoaded(true);
+        return;
+      }
       const customFields = Array.isArray(value.profile?.customFields) ? value.profile.customFields : [];
       const resumes = Array.isArray(value.profile?.resumes) ? value.profile.resumes.slice(0, 4) : [];
       const currentResumeId =
@@ -57,6 +62,7 @@ function Popup() {
           currentResumeId
         }
       });
+      setSettingsLoaded(true);
     });
   }, []);
 
@@ -99,6 +105,12 @@ function Popup() {
     () => settings.profile.resumes.find((resume) => resume.id === settings.profile.currentResumeId) ?? settings.profile.resumes[0],
     [settings.profile.currentResumeId, settings.profile.resumes]
   );
+
+  useEffect(() => {
+    if (!settingsLoaded || autoMatchStarted || !currentResume) return;
+    setAutoMatchStarted(true);
+    void runAtsMatch();
+  }, [autoMatchStarted, currentResume, settingsLoaded]);
 
   async function saveSettings(nextSettings = settings) {
     await chrome.storage.local.set({ [storageKey]: nextSettings });
@@ -278,13 +290,13 @@ function Popup() {
       </section>
 
       <nav className="tabs" aria-label="FillAI sections">
-        <button className={activeTab === "autofill" ? "tab active" : "tab"} onClick={() => setActiveTab("autofill")} type="button">
-          <Sparkles size={16} />
-          Autofill
-        </button>
         <button className={activeTab === "match" ? "tab active" : "tab"} onClick={() => setActiveTab("match")} type="button">
           <BriefcaseBusiness size={16} />
           ATS Match
+        </button>
+        <button className={activeTab === "autofill" ? "tab active" : "tab"} onClick={() => setActiveTab("autofill")} type="button">
+          <Sparkles size={16} />
+          Autofill
         </button>
       </nav>
 
